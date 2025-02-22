@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../config.dart';
 import 'request.screen.dart'; // Import the RequestScreen
+import 'package:firebase_storage/firebase_storage.dart';
 
 class NewSeedRequestScreen extends StatefulWidget {
   @override
@@ -75,44 +76,74 @@ class _NewSeedRequestScreenState extends State<NewSeedRequestScreen> {
     });
   }
 
-  Future<void> _submitRequest() async {
-    if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
 
-      if (_userId == null) {
-        _showErrorDialog('User ID not found. Please log in again.');
+
+Future<void> _submitRequest() async {
+  if (_formKey.currentState!.validate()) {
+    _formKey.currentState!.save();
+
+    if (_userId == null) {
+      _showErrorDialog('User ID not found. Please log in again.');
+      return;
+    }
+
+    String? imageUrl;
+
+    // Upload image if selected
+    if (_image != null) {
+      try {
+        File imageFile = File(_image!.path);
+        String fileName = 'seed_requests/${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+        // Upload image to Firebase Storage
+        print("Uploading image to Firebase Storage...");
+        UploadTask uploadTask = FirebaseStorage.instance.ref(fileName).putFile(imageFile);
+        TaskSnapshot snapshot = await uploadTask;
+
+        // Get the download URL
+        imageUrl = await snapshot.ref.getDownloadURL();
+        print("Image uploaded successfully. URL: $imageUrl");
+      } catch (e) {
+        print("Error uploading image: $e");
+        _showErrorDialog('Failed to upload image. Please try again.');
         return;
       }
+    } else {
+      print("No image selected, proceeding without image.");
+    }
 
-      try {
-        final uri = Uri.parse('${Config.apiUrl}/api/seed-requests');
-        final request = http.MultipartRequest('POST', uri);
+    // Debugging: Print the final imageUrl before sending request
+    print("Final Image URL before sending request: $imageUrl");
 
-        request.fields['userId'] = _userId!;
-        request.fields['seedType'] = _selectedSeed!;
-        request.fields['description'] = _description;
+    try {
+      final uri = Uri.parse('${Config.apiUrl}/api/seed-requests');
+      final response = await http.post(
+        uri,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "userId": _userId,
+          "seedType": _selectedSeed,
+          "description": _description,
+          "imagePath": imageUrl ?? "", // Ensure null-safe assignment
+          "status": "pending",
+          "createdAt": DateTime.now().toIso8601String(),
+        }),
+      );
 
-        if (_image != null) {
-          request.files.add(
-            await http.MultipartFile.fromPath('image', _image!.path),
-          );
-        }
-
-        final response = await request.send();
-
-        if (response.statusCode == 201) {
-          print("Request submitted successfully");
-          _showSuccessDialog('Your request for $_selectedSeed has been submitted!');
-        } else {
-          print("Failed to submit request. Status code: ${response.statusCode}");
-          _showErrorDialog('Failed to submit request. Please try again.');
-        }
-      } catch (error) {
-        print("Error submitting request: $error");
-        _showErrorDialog('An error occurred. Please try again later.');
+      if (response.statusCode == 201) {
+        print("Request submitted successfully with image URL.");
+        _showSuccessDialog('Your request for $_selectedSeed has been submitted!');
+      } else {
+        print("Failed to submit request. Status code: ${response.statusCode}");
+        print("Response body: ${response.body}");
+        _showErrorDialog('Failed to submit request. Please try again.');
       }
+    } catch (error) {
+      print("Error submitting request: $error");
+      _showErrorDialog('An error occurred. Please try again later.');
     }
   }
+}
 
   void _showSuccessDialog(String message) {
     showDialog(
