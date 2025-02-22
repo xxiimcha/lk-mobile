@@ -41,49 +41,55 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
     }
   }
 
-  Future<void> _loadVideosFromFirebase() async {
-    try {
-      if (widget.plant == null || !widget.plant.containsKey('seedType') || widget.plant['seedType'] == null) {
-        print("Error: seedType is missing or null");
-        return;
-      }
-
-      final seedType = widget.plant['seedType'].toString().toLowerCase().trim(); // Convert to string first
-      print("Fetching videos for seedType: $seedType");
-
-      final storageRef = FirebaseStorage.instance.ref().child('videos/$seedType');
-      final ListResult result = await storageRef.listAll();
-
-      List<Map<String, String>> videos = [];
-
-      for (var ref in result.items) {
-        String url = await ref.getDownloadURL();
-        print("Video found: ${ref.name} - URL: $url");
-        videos.add({
-          'title': ref.name.replaceAll('.mp4', ''), // Remove extension
-          'url': url.replaceAll(" ", "%20"), // Fix space issue
-        });
-      }
-
-      videos.sort((a, b) => a['title']!.compareTo(b['title']!));
-
-      setState(() {
-        videoDetails = videos;
-        isLoadingVideos = false;
-      });
-
-      videoControllers = videos.map((video) => VideoPlayerController.network(video['url']!)).toList();
-      for (var controller in videoControllers) {
-        await controller.initialize();
-      }
-      setState(() {});
-    } catch (e) {
-      print("Error fetching videos from Firebase: $e");
-      setState(() {
-        isLoadingVideos = false;
-      });
+Future<void> _loadVideosFromFirebase() async {
+  try {
+    if (widget.plant == null || !widget.plant.containsKey('name') || widget.plant['name'] == null) {
+      print("Error: Plant name is missing or null");
+      return;
     }
+
+    final seedType = widget.plant['name'].toString().toLowerCase().trim();
+    final storageRef = FirebaseStorage.instance.ref().child('videos/$seedType'); // Corrected path
+
+    print("Checking folder in Firebase Storage: videos/$seedType");
+
+    final ListResult result = await storageRef.listAll();
+
+    if (result.items.isEmpty) {
+      print("No videos found in: videos/$seedType");
+      return;
+    }
+
+    print("Files found in folder: videos/$seedType");
+    List<Map<String, String>> videos = [];
+
+    for (var ref in result.items) {
+      try {
+        String url = await ref.getDownloadURL();
+        print("Video found: ${ref.name} at $url");
+
+        videos.add({
+          'title': ref.name,
+          'url': url,
+        });
+      } catch (e) {
+        print("Error fetching video URL for ${ref.name}: $e");
+      }
+    }
+
+    setState(() {
+      videoDetails = videos;
+      isLoadingVideos = false;
+    });
+
+  } catch (e) {
+    print("Error accessing Firebase Storage: $e");
+    setState(() {
+      isLoadingVideos = false;
+    });
   }
+}
+
 
   // Analyze plant progress using TFLite
   Future<void> _analyzePlantProgress() async {
