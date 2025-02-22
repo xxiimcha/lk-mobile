@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../config.dart'; // Import config.dart
+import '../config.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -13,11 +13,15 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  String _name = 'Paul';
-  String _email = 'paul@example.com';
-  String _phone = '123-456-7890';
+
+  // Controllers for text fields
+  TextEditingController _nameController = TextEditingController();
+  TextEditingController _emailController = TextEditingController();
+  TextEditingController _phoneController = TextEditingController();
+
   XFile? _profileImage;
   final ImagePicker _picker = ImagePicker();
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -27,77 +31,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadProfileData() async {
     final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId');
+
+    if (userId == null) {
+      _showSnackBar("User not authenticated. Please log in again.");
+      return;
+    }
 
     setState(() {
-      _name = prefs.getString('name') ?? _name;
-      _email = prefs.getString('email') ?? _email;
-      _phone = prefs.getString('phone') ?? _phone;
-      final imagePath = prefs.getString('profileImage');
-      if (imagePath != null) _profileImage = XFile(imagePath);
+      _isLoading = true;
     });
 
-    print("Loaded name: $_name");
-    print("Loaded email: $_email");
-    print("Loaded phone: $_phone");
-    print("Loaded profile image: ${_profileImage?.path}");
-
-    await _fetchUserData(); // Fetch latest data from API
-  }
-
-
-  Future<void> _printStoredData() async {
-    final prefs = await SharedPreferences.getInstance();
-    print('Stored name: ${prefs.getString('name')}');
-    print('Stored email: ${prefs.getString('email')}');
-    print('Stored phone: ${prefs.getString('phone')}');
-    print('Stored profile image path: ${prefs.getString('profileImage')}');
+    await _fetchUserData();
+    
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   Future<void> _fetchUserData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token'); // Retrieve token from storage
+      final token = prefs.getString('token');
+      final userId = prefs.getString('userId');
 
-      if (token == null) {
-        print("Token not found in SharedPreferences");
-        _showSnackBar("User not authenticated. Please log in again.");
+      if (token == null || userId == null) {
+        _showSnackBar("Authentication error. Please log in again.");
         return;
       }
 
-      print("Sending API request with token: $token");
+      print("Fetching profile with userId: $userId and token: $token");
 
       final response = await http.get(
-        Uri.parse('${Config.apiUrl}/api/users/user-profile'),
-        headers: {'Authorization': 'Bearer $token'}, // Ensure correct auth header
+        Uri.parse('${Config.apiUrl}/api/users/$userId'),
+        headers: {'Authorization': 'Bearer $token'},
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print("API Response: $data");
-
         setState(() {
-          _name = data['username'] ?? _name;
-          _email = data['email'] ?? _email;
-          _phone = data['phone'] ?? _phone;
+          _nameController.text = data['username'] ?? '';
+          _emailController.text = data['email'] ?? '';
+          _phoneController.text = data['phone'] ?? '';
         });
-
-        await _saveProfileData();
+        print("Profile data loaded: $data");
       } else {
-        print("Failed to load user data: ${response.body}");
-        _showSnackBar("Failed to load user data.");
+        print("Failed to load profile. Status: ${response.statusCode}, Response: ${response.body}");
+        _showSnackBar("Failed to retrieve profile. Try again.");
       }
     } catch (e) {
       print("Error fetching user data: $e");
-      _showSnackBar("Error fetching user data. Try again.");
+      _showSnackBar("An error occurred. Please try again.");
     }
-  } 
-  
-  Future<void> _saveProfileData() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('name', _name);
-    await prefs.setString('email', _email);
-    await prefs.setString('phone', _phone);
-    if (_profileImage != null) await prefs.setString('profileImage', _profileImage!.path);
   }
 
   Future<void> _pickImageFromGallery() async {
@@ -135,16 +120,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _saveProfile() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
-      await _saveProfileData();
+
       await _uploadProfileImage();
 
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('Profile Updated'),
-          content: Text('Your profile information has been updated successfully.'),
+          title: Icon(Icons.check_circle, color: Colors.green, size: 50),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Profile Updated!",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 10),
+              Text("Your profile information has been successfully updated."),
+            ],
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('Close')),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('OK'),
+            ),
           ],
         ),
       );
@@ -182,7 +180,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
@@ -191,40 +191,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         title: Text('Profile'),
         backgroundColor: Colors.green.shade700,
-        leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: () => Navigator.of(context).pop()),
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _buildProfileImage(),
-                SizedBox(height: 20),
-                _buildTextField('Name', _name, (value) => _name = value ?? '', 'Please enter your name'),
-                SizedBox(height: 20),
-                _buildTextField('Email', _email, (value) => _email = value ?? '', 'Please enter a valid email address',
-                    emailValidation: true),
-                SizedBox(height: 20),
-                _buildTextField('Phone Number', _phone, (value) => _phone = value ?? '', 'Please enter your phone number'),
-                SizedBox(height: 30),
-                ElevatedButton(
-                  onPressed: _saveProfile,
-                  child: Text('Save Profile'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade700,
-                    padding: EdgeInsets.symmetric(vertical: 16.0),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    minimumSize: Size(double.infinity, 50),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ),
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _buildProfileImage(),
+                      SizedBox(height: 20),
+                      _buildTextField('Name', _nameController),
+                      SizedBox(height: 20),
+                      _buildTextField('Email', _emailController),
+                      SizedBox(height: 20),
+                      _buildTextField('Phone Number', _phoneController),
+                      SizedBox(height: 30),
+                      ElevatedButton(
+                        onPressed: _saveProfile,
+                        child: Text('Save Profile'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade700,
+                          padding: EdgeInsets.symmetric(vertical: 16.0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          minimumSize: Size(double.infinity, 50),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
     );
   }
 
@@ -256,30 +262,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildTextField(
-    String label,
-    String initialValue,
-    void Function(String?) onSaved,
-    String validationMessage, {
-    bool emailValidation = false,
-  }) {
+  Widget _buildTextField(String label, TextEditingController controller) {
     return TextFormField(
-      initialValue: initialValue,
+      controller: controller,
       decoration: InputDecoration(
         labelText: label,
         border: OutlineInputBorder(),
         filled: true,
         fillColor: Colors.grey.shade100,
       ),
-      onSaved: onSaved,
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return validationMessage;
-        } else if (emailValidation && !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-          return 'Please enter a valid email address';
-        }
-        return null;
-      },
     );
   }
 }

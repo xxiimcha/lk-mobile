@@ -118,7 +118,7 @@ class _RequestScreenState extends State<RequestScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Pending Seed Requests',
+                        'Seed Requests',
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
