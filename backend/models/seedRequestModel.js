@@ -23,6 +23,11 @@ const seedRequestSchema = new mongoose.Schema({
     enum: ['pending', 'approved', 'rejected'], // Define possible values for status
     default: 'pending', // Set default value to 'pending'
   },
+  progress: {
+    type: Map, // Allows storing dynamic key-value pairs
+    of: mongoose.Schema.Types.Mixed, // Supports different data types dynamically
+    default: {}, // Default to an empty object
+  },
   createdAt: {
     type: Date,
     default: Date.now,

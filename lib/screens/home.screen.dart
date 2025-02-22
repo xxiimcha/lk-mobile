@@ -18,9 +18,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // List to store plants dynamically added by the user
   final List<Map<String, dynamic>> plants = [];
 
-  // List of plant options for dropdown
-  final List<String> plantOptions = ['Sili', 'Talong', 'Okra'];
-
   @override
   void initState() {
     super.initState();
@@ -46,7 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
       print('Loaded userId: $_userId');
     }
   }
-
+  
   Future<void> _fetchPlants() async {
     if (_userId == null) {
       print('User ID not found, cannot fetch plants.');
@@ -74,9 +71,9 @@ class _HomeScreenState extends State<HomeScreen> {
           plants.addAll(responseData.where((data) => data['status'] == 'released').map((data) => {
                 'id': data['_id'] ?? '',
                 'name': data['seedType'] ?? 'Unknown',
-                'progress': data.containsKey('progress') && data['progress'] != null
-                    ? data['progress']
-                    : 0.0, // Handle missing progress
+                'progress': (data['progress'] is Map && data['progress'].isNotEmpty)
+                  ? _calculateProgress(data['progress']) 
+                  : 0.0, // Ensure progress is always a number
               }));
         });
 
@@ -95,122 +92,21 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  double _calculateProgress(Map<String, dynamic> progressData) {
+    // Example: Calculate progress based on the number of completed stages
+    int totalStages = progressData.length;
+    if (totalStages == 0) return 0.0; 
+
+    int completedStages = progressData.values.where((value) => value == true).length;
+
+    return (completedStages / totalStages) * 100; // Convert to percentage
+  }
+
   void _toggleSidebar() {
     setState(() {
       _isSidebarOpen = !_isSidebarOpen;
     });
     print('Sidebar toggled: $_isSidebarOpen');
-  }
-
-  void _addNewPlant() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        String? selectedPlant;
-
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          backgroundColor: Colors.green.shade50,
-          title: Text(
-            'Add New Plant',
-            style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.bold),
-          ),
-          content: DropdownButtonFormField<String>(
-            decoration: InputDecoration(
-              labelText: 'Select Plant',
-              labelStyle: TextStyle(color: Colors.green.shade800),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.green),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.green.shade700),
-              ),
-            ),
-            items: plantOptions.map((String plant) {
-              return DropdownMenuItem<String>(
-                value: plant,
-                child: Text(plant),
-              );
-            }).toList(),
-            onChanged: (value) {
-              selectedPlant = value;
-              print('Selected plant: $selectedPlant');
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                print('Add plant dialog canceled.');
-              },
-              child: Text('Cancel', style: TextStyle(color: Colors.white)),
-              style: TextButton.styleFrom(
-                backgroundColor: Colors.green.shade700,
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (selectedPlant != null && _userId != null) {
-                  print('Attempting to save plant $selectedPlant for user $_userId');
-                  await _savePlantToDatabase(selectedPlant!);
-                  Navigator.of(context).pop();
-                } else {
-                  print('Add plant failed: Plant not selected or user not logged in');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Please select a plant and ensure you are logged in')),
-                  );
-                }
-              },
-              child: Text('Add Plant', style: TextStyle(color: Colors.white)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green.shade700,
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _savePlantToDatabase(String plantName) async {
-    print('Saving plant $plantName to database...');
-    try {
-      final response = await http.post(
-        Uri.parse('${Config.apiUrl}/api/plants/add'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'userId': _userId,
-          'plantName': plantName,
-          'progress': 0.0, // Default progress
-        }),
-      );
-
-      if (response.statusCode == 201) {
-        setState(() {
-          plants.add({'name': plantName, 'progress': 0.0});
-        });
-        print('Plant added successfully to database: $plantName');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Plant added successfully!')),
-        );
-      } else {
-        print('Failed to add plant to database. Status code: ${response.statusCode}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to add plant.')),
-        );
-      }
-    } catch (error) {
-      print('Error saving plant to database: $error');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An error occurred. Please try again.')),
-      );
-    }
   }
 
   @override
@@ -273,21 +169,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                 );
                               },
                             ),
-                    ),
-                    SizedBox(height: 16),
-                    Center(
-                      child: ElevatedButton.icon(
-                        onPressed: _addNewPlant,
-                        icon: Icon(Icons.add, color: Colors.white),
-                        label: Text('Add New Plant', style: TextStyle(color: Colors.white)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade700,
-                          padding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 20.0),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
                     ),
                   ],
                 ),

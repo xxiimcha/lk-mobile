@@ -24,6 +24,7 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    print("Plant data received: ${widget.plant}"); // Debugging
     _loadTFLiteModel();
     _loadVideosFromFirebase();
   }
@@ -40,30 +41,37 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
     }
   }
 
-  // Load video URLs from Firebase Storage dynamically based on plant name
   Future<void> _loadVideosFromFirebase() async {
     try {
-      final plantName = widget.plant['name'].toLowerCase(); // Use plant name to determine folder
-      final storageRef = FirebaseStorage.instance.ref().child('videos/$plantName');
+      if (widget.plant == null || !widget.plant.containsKey('seedType') || widget.plant['seedType'] == null) {
+        print("Error: seedType is missing or null");
+        return;
+      }
+
+      final seedType = widget.plant['seedType'].toString().toLowerCase().trim(); // Convert to string first
+      print("Fetching videos for seedType: $seedType");
+
+      final storageRef = FirebaseStorage.instance.ref().child('videos/$seedType');
       final ListResult result = await storageRef.listAll();
 
-      // Fetch video URLs and sort them by filename
-      List<Map<String, String>> videos = await Future.wait(result.items.map((ref) async {
-        String url = await ref.getDownloadURL();
-        return {
-          'title': ref.name.split('.mp4')[0], // Use filename (without extension) as the title
-          'url': url
-        };
-      }).toList());
+      List<Map<String, String>> videos = [];
 
-      videos.sort((a, b) => a['title']!.compareTo(b['title']!)); // Sort videos by title
+      for (var ref in result.items) {
+        String url = await ref.getDownloadURL();
+        print("Video found: ${ref.name} - URL: $url");
+        videos.add({
+          'title': ref.name.replaceAll('.mp4', ''), // Remove extension
+          'url': url.replaceAll(" ", "%20"), // Fix space issue
+        });
+      }
+
+      videos.sort((a, b) => a['title']!.compareTo(b['title']!));
 
       setState(() {
         videoDetails = videos;
         isLoadingVideos = false;
       });
 
-      // Initialize video controllers
       videoControllers = videos.map((video) => VideoPlayerController.network(video['url']!)).toList();
       for (var controller in videoControllers) {
         await controller.initialize();
