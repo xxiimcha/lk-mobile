@@ -36,9 +36,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (imagePath != null) _profileImage = XFile(imagePath);
     });
 
-    await _fetchUserData();
-    _printStoredData(); // Print values to the terminal
+    print("Loaded name: $_name");
+    print("Loaded email: $_email");
+    print("Loaded phone: $_phone");
+    print("Loaded profile image: ${_profileImage?.path}");
+
+    await _fetchUserData(); // Fetch latest data from API
   }
+
 
   Future<void> _printStoredData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -50,25 +55,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _fetchUserData() async {
     try {
-      final response = await http.get(Uri.parse('${Config.apiUrl}/user-profile'));
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token'); // Retrieve token from storage
+
+      if (token == null) {
+        print("Token not found in SharedPreferences");
+        _showSnackBar("User not authenticated. Please log in again.");
+        return;
+      }
+
+      print("Sending API request with token: $token");
+
+      final response = await http.get(
+        Uri.parse('${Config.apiUrl}/api/users/user-profile'),
+        headers: {'Authorization': 'Bearer $token'}, // Ensure correct auth header
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        print("API Response: $data");
+
         setState(() {
-          _name = data['name'] ?? _name;
+          _name = data['username'] ?? _name;
           _email = data['email'] ?? _email;
           _phone = data['phone'] ?? _phone;
         });
-        _saveProfileData();
+
+        await _saveProfileData();
       } else {
+        print("Failed to load user data: ${response.body}");
         _showSnackBar("Failed to load user data.");
       }
     } catch (e) {
       print("Error fetching user data: $e");
       _showSnackBar("Error fetching user data. Try again.");
     }
-  }
-
+  } 
+  
   Future<void> _saveProfileData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('name', _name);

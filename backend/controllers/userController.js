@@ -119,6 +119,44 @@ exports.getUserById = async (req, res) => {
   }
 };
 
+exports.getCurrentUserProfile = async (req, res) => {
+  try {
+    // Extract the token from headers
+    const token = req.headers.authorization?.split(" ")[1];
+
+    if (!token) {
+      console.error("No token provided.");
+      return res.status(401).json({ error: "Unauthorized - No token provided" });
+    }
+
+    // Decode the JWT token to get the user ID
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+
+    // Ensure the userId is a valid ObjectId before querying MongoDB
+    if (!userId || !userId.match(/^[0-9a-fA-F]{24}$/)) {
+      console.error(`Invalid userId format: ${userId}`);
+      return res.status(400).json({ error: "Invalid user ID format" });
+    }
+
+    console.log(`Fetching user profile for user ID: ${userId}`);
+
+    // Query MongoDB for the user profile
+    const user = await User.findById(userId).select("-password");
+
+    if (!user) {
+      console.error(`User not found for ID: ${userId}`);
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    console.log("User profile retrieved:", user);
+    res.status(200).json(user);
+  } catch (error) {
+    console.error("Get user profile error:", error.message);
+    res.status(500).json({ error: "Server error", details: error.message });
+  }
+};
+
 // Update user profile with optional profile image upload
 exports.updateUserProfile = [
   upload.single('profileImage'), // Middleware to handle image upload

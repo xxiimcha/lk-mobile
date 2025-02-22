@@ -22,52 +22,66 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _generatedOtp;
 
   Future<void> _login() async {
-    setState(() {
-      _isLoading = true;
-    });
+  setState(() {
+    _isLoading = true;
+  });
 
-    final String email = _emailController.text.trim();
-    final String password = _passwordController.text.trim();
+  final String email = _emailController.text.trim();
+  final String password = _passwordController.text.trim();
 
-    try {
-      final response = await http.post(
-        Uri.parse('${Config.apiUrl}/api/users/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}),
+  try {
+    final response = await http.post(
+      Uri.parse('${Config.apiUrl}/api/users/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'password': password}),
+    );
+
+    if (response.statusCode == 200) {
+      final responseData = jsonDecode(response.body);
+      final token = responseData['token'];
+      final user = responseData['user'];
+
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString('token', token);
+      await prefs.setString('userId', user['id']);
+      await prefs.setString('username', user['username']);
+      await prefs.setString('email', user['email']);
+      await prefs.setString('role', user['role']);
+
+      print("Token stored: $token");
+      print("Stored user ID: ${user['id']}");
+      print("Stored username: ${user['username']}");
+      print('Saved email: ${user['email']}');
+      print('Saved role: ${user['role']}');
+
+      // Generate OTP
+      final otp = _generateOtp();
+      _generatedOtp = otp;
+
+      // Send OTP via Email
+      await _sendOtpEmail(email, otp);
+
+      // Navigate to OTP Verification Screen
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OTPVerificationScreen(email: email, generatedOtp: otp, token: token, user: user),
+        ),
       );
-
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        final token = responseData['token'];
-        final user = responseData['user'];
-
-        // Generate OTP
-        final otp = _generateOtp();
-        _generatedOtp = otp;
-
-        // Send OTP via Email
-        await _sendOtpEmail(email, otp);
-
-        // Navigate to OTP Verification Screen
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OTPVerificationScreen(email: email, generatedOtp: otp, token: token, user: user),
-          ),
-        );
-      } else {
-        final responseData = jsonDecode(response.body);
-        final errorMessage = responseData['error'] ?? 'Login failed. Please try again.';
-        _showErrorSnackBar(errorMessage);
-      }
-    } catch (e) {
-      _showErrorSnackBar('An unexpected error occurred. Please try again.');
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+    } else {
+      final responseData = jsonDecode(response.body);
+      final errorMessage = responseData['error'] ?? 'Login failed. Please try again.';
+      _showErrorSnackBar(errorMessage);
     }
+  } catch (e) {
+    _showErrorSnackBar('An unexpected error occurred. Please try again.');
+  } finally {
+    setState(() {
+      _isLoading = false;
+    });
   }
+}
+
 
   /// Generates a 6-digit OTP
   String _generateOtp() {
@@ -86,9 +100,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     final message = Message()
-      ..from = Address(Config.smtpUsername, "Your App Name")
+      ..from = Address(Config.smtpUsername, "Luntiang Kamay")
       ..recipients.add(email)
-      ..subject = "Your OTP Code"
+      ..subject = "Login: Verification Code"
       ..html = """
           <html>
             <body style="font-family: Arial, sans-serif; text-align: center; background-color: #f3f4f6; padding: 20px;">
