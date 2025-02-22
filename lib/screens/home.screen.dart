@@ -47,7 +47,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Fetch existing plants from the database
   Future<void> _fetchPlants() async {
     if (_userId == null) {
       print('User ID not found, cannot fetch plants.');
@@ -56,10 +55,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     print('Fetching plants for user ID: $_userId');
 
-print('API Endpoint: ${Config.apiUrl}/api/plants/user-plants/$_userId');
     try {
       final response = await http.get(
-        Uri.parse('${Config.apiUrl}/api/plants/user-plants/$_userId'), // Pass userId in the URL
+        Uri.parse('${Config.apiUrl}/api/plants/user-plants/$_userId'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -69,13 +67,16 @@ print('API Endpoint: ${Config.apiUrl}/api/plants/user-plants/$_userId');
       if (response.statusCode == 200) {
         final List<dynamic> responseData = jsonDecode(response.body);
 
-        // Parsing the plant data from the response
         setState(() {
           plants.clear();
-          plants.addAll(responseData.map((data) => {
-                'id': data['_id'], // Use '_id' from MongoDB as the unique ID
-                'name': data['plantName'], // Use 'plantName' for display
-                'progress': data['progress'], // Use 'progress' for progress tracking
+
+          // Filter only plants with status 'released'
+          plants.addAll(responseData.where((data) => data['status'] == 'released').map((data) => {
+                'id': data['_id'] ?? '',
+                'name': data['seedType'] ?? 'Unknown',
+                'progress': data.containsKey('progress') && data['progress'] != null
+                    ? data['progress']
+                    : 0.0, // Handle missing progress
               }));
         });
 

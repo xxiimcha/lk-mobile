@@ -75,7 +75,7 @@ class Sidebar extends StatelessWidget {
               children: [
                 CircleAvatar(
                   backgroundImage: NetworkImage(
-                      'https://via.placeholder.com/150'), // Placeholder image
+                      'https://www.google.com/url?sa=i&url=https%3A%2F%2Fralfvanveen.com%2Fen%2Fglossary%2Fplaceholder%2F&psig=AOvVaw3t3IH2mOwx2t88YV96GzO4&ust=1740276173799000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCJi-64-Y1osDFQAAAAAdAAAAABAE'), // Placeholder image
                   radius: 20,
                 ),
                 SizedBox(width: 10),

@@ -1,6 +1,7 @@
-const Plant = require('../models/plantModel'); // Import the Plant model
+const Plant = require('../models/plantModel');
+const SeedRequest = require('../models/seedRequestModel');
+const mongoose = require('mongoose');
 
-// Controller function to add a new plant
 exports.addPlant = async (req, res) => {
   const { userId, plantName } = req.body;
 
@@ -9,14 +10,13 @@ exports.addPlant = async (req, res) => {
   }
 
   try {
-    // Create a new plant with default progress of 0
     const newPlant = new Plant({
-      userId,
+      userId: new mongoose.Types.ObjectId(userId), // Ensure it's stored as ObjectId
       plantName,
-      progress: 0, // Default progress value
+      progress: 0,
     });
 
-    await newPlant.save(); // Save the plant to the database
+    await newPlant.save();
     res.status(201).json({ message: 'Plant added successfully', plant: newPlant });
   } catch (error) {
     console.error('Error adding plant:', error);
@@ -24,15 +24,22 @@ exports.addPlant = async (req, res) => {
   }
 };
 
-// Controller function to fetch all plants for a user
 exports.getUserPlants = async (req, res) => {
-  const { userId } = req.params;
-  console.log(`Fetching plants for userId: ${userId}`); // Debugging log
   try {
-    const plants = await Plant.find({ userId });
-    res.status(200).json(plants);
+    const userId = new mongoose.Types.ObjectId(req.params.userId);
+    console.log(`Fetching seed requests for userId: ${userId}`);
+
+    // Fetch all seed requests regardless of status
+    const seedRequests = await SeedRequest.find({
+      userId,
+      status: { $in: ["pending", "approved", "released", "rejected"] } // Include all possible statuses
+    }).lean(); // Convert Mongoose documents to raw JSON
+
+    console.log(`Seed requests found: ${seedRequests.length}`, JSON.stringify(seedRequests, null, 2));
+    
+    res.status(200).json(seedRequests);
   } catch (error) {
-    console.error('Error fetching plants:', error);
-    res.status(500).json({ error: 'Failed to fetch plants' });
+    console.error('Error fetching seed requests:', error);
+    res.status(500).json({ error: 'Failed to fetch seed requests' });
   }
 };
