@@ -162,8 +162,8 @@ exports.updateUserProfile = [
   upload.single('profileImage'), // Middleware to handle image upload
   async (req, res) => {
     const { userId } = req.params;
-    const { username, email, phone } = req.body;
-    const updateData = { username, email, phone };
+    const { name, username, email, phone } = req.body;
+    const updateData = { name, username, email, phone };
 
     if (req.file) {
       updateData.profileImage = req.file.path; // Store the file path in the profileImage field

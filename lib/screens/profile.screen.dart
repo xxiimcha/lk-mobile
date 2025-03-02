@@ -16,8 +16,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // Controllers for text fields
   TextEditingController _nameController = TextEditingController();
+  TextEditingController _usernameController = TextEditingController();
   TextEditingController _emailController = TextEditingController();
-  TextEditingController _phoneController = TextEditingController();
 
   XFile? _profileImage;
   final ImagePicker _picker = ImagePicker();
@@ -60,8 +60,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
 
-      print("Fetching profile with userId: $userId and token: $token");
-
       final response = await http.get(
         Uri.parse('${Config.apiUrl}/api/users/$userId'),
         headers: {'Authorization': 'Bearer $token'},
@@ -70,21 +68,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
-          _nameController.text = data['username'] ?? '';
+          _nameController.text = data['name']?.isNotEmpty == true ? data['name'] : 'Enter your name';
+          _usernameController.text = data['username']?.isNotEmpty == true ? data['username'] : '';
           _emailController.text = data['email'] ?? '';
-          _phoneController.text = data['phone'] ?? '';
         });
-        print("Profile data loaded: $data");
       } else {
-        print("Failed to load profile. Status: ${response.statusCode}, Response: ${response.body}");
         _showSnackBar("Failed to retrieve profile. Try again.");
       }
     } catch (e) {
-      print("Error fetching user data: $e");
       _showSnackBar("An error occurred. Please try again.");
     }
   }
 
+  
   Future<void> _pickImageFromGallery() async {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
     setState(() => _profileImage = pickedFile);
@@ -94,95 +90,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final pickedFile = await _picker.pickImage(source: ImageSource.camera);
     setState(() => _profileImage = pickedFile);
   }
-
-  Future<void> _uploadProfileImage() async {
-    if (_profileImage == null) return;
-
-    try {
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('${Config.apiUrl}/upload-profile-image'),
-      );
-      request.files.add(await http.MultipartFile.fromPath('profileImage', _profileImage!.path));
-      final response = await request.send();
-
-      if (response.statusCode == 200) {
-        _showSnackBar("Profile image uploaded successfully.");
-      } else {
-        throw Exception("Failed to upload profile image.");
-      }
-    } catch (e) {
-      print("Error uploading profile image: $e");
-      _showSnackBar("Error uploading profile image. Try again.");
-    }
-  }
-
-  void _saveProfile() async {
+  
+  Future<void> _saveProfile() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
 
-      await _uploadProfileImage();
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final token = prefs.getString('token');
+        final userId = prefs.getString('userId');
 
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Icon(Icons.check_circle, color: Colors.green, size: 50),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                "Profile Updated!",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 10),
-              Text("Your profile information has been successfully updated."),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('OK'),
-            ),
-          ],
-        ),
-      );
-    }
-  }
+        if (token == null || userId == null) {
+          _showSnackBar("Authentication error. Please log in again.");
+          return;
+        }
 
-  void _showImageOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Wrap(
-            children: [
-              ListTile(
-                leading: Icon(Icons.photo_library),
-                title: Text('Pick from Gallery'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _pickImageFromGallery();
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.camera_alt),
-                title: Text('Take a Photo'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _takePhoto();
-                },
-              ),
-            ],
-          ),
+        final response = await http.put(
+          Uri.parse('${Config.apiUrl}/api/users/$userId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'name': _nameController.text,
+            'username': _usernameController.text,
+            'email': _emailController.text,
+          }),
         );
-      },
-    );
-  }
 
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+        if (response.statusCode == 200) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Icon(Icons.check_circle, color: Colors.green, size: 50),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "Profile Updated!",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 10),
+                  Text("Your profile information has been successfully updated."),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('OK'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          _showSnackBar("Failed to update profile. Try again.");
+        }
+      } catch (e) {
+        _showSnackBar("An error occurred. Please try again.");
+      }
+    }
   }
 
   @override
@@ -208,11 +174,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       _buildProfileImage(),
                       SizedBox(height: 20),
-                      _buildTextField('Name', _nameController),
+                      _buildTextField('Full Name', _nameController),
+                      SizedBox(height: 20),
+                      _buildTextField('Username', _usernameController),
                       SizedBox(height: 20),
                       _buildTextField('Email', _emailController),
-                      SizedBox(height: 20),
-                      _buildTextField('Phone Number', _phoneController),
                       SizedBox(height: 30),
                       ElevatedButton(
                         onPressed: _saveProfile,
@@ -234,6 +200,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+void _showSnackBar(String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(message)),
+  );
+}
+
+void _showImageOptions() {
+  showModalBottomSheet(
+    context: context,
+    builder: (context) {
+      return SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: Icon(Icons.photo_library),
+              title: Text('Pick from Gallery'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickImageFromGallery();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.camera_alt),
+              title: Text('Take a Photo'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _takePhoto();
+              },
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
   Widget _buildProfileImage() {
     return Center(
       child: Stack(
@@ -241,8 +243,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           CircleAvatar(
             radius: 60,
             backgroundImage: _profileImage != null
-                ? FileImage(File(_profileImage!.path))
-                : AssetImage('assets/placeholder.png') as ImageProvider,
+            ? FileImage(File(_profileImage!.path)) as ImageProvider
+            : const AssetImage('assets/placeholder.png'),
             backgroundColor: Colors.grey.shade200,
           ),
           Positioned(
