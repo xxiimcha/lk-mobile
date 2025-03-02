@@ -5,12 +5,32 @@ import '../screens/request.screen.dart';
 import '../screens/profile.screen.dart';
 import '../screens/login.screen.dart'; // Import the login screen
 
-class Sidebar extends StatelessWidget {
+class Sidebar extends StatefulWidget {
   final bool isOpen;
   final Function toggleSidebar;
 
   const Sidebar({Key? key, required this.isOpen, required this.toggleSidebar})
       : super(key: key);
+
+  @override
+  _SidebarState createState() => _SidebarState();
+}
+
+class _SidebarState extends State<Sidebar> {
+  String _username = 'Loading...'; // Default placeholder
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsername(); // Fetch username from SharedPreferences
+  }
+
+  Future<void> _loadUsername() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _username = prefs.getString('username') ?? 'Guest'; // Set default if null
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,18 +46,13 @@ class Sidebar extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    SizedBox(width: 10),
-                    Text(
-                      'Luntiang Kamay',
-                      style: TextStyle(color: Colors.white, fontSize: 18),
-                    ),
-                  ],
+                Text(
+                  'Luntiang Kamay',
+                  style: TextStyle(color: Colors.white, fontSize: 18),
                 ),
                 IconButton(
                   icon: Icon(Icons.menu, color: Colors.white),
-                  onPressed: () => toggleSidebar(),
+                  onPressed: () => widget.toggleSidebar(),
                 ),
               ],
             ),
@@ -45,26 +60,10 @@ class Sidebar extends StatelessWidget {
           Expanded(
             child: ListView(
               children: [
-                _buildSidebarItem(
-                  icon: Icons.nature,
-                  label: 'Plant Progress',
-                  context: context,
-                ),
-                _buildSidebarItem(
-                  icon: Icons.request_page,
-                  label: 'Request',
-                  context: context,
-                ),
-                _buildSidebarItem(
-                  icon: Icons.person,
-                  label: 'Profile',
-                  context: context,
-                ),
-                _buildSidebarItem(
-                  icon: Icons.logout,
-                  label: 'Logout',
-                  context: context,
-                ),
+                _buildSidebarItem(icon: Icons.nature, label: 'Plant Progress', context: context),
+                _buildSidebarItem(icon: Icons.request_page, label: 'Request', context: context),
+                _buildSidebarItem(icon: Icons.person, label: 'Profile', context: context),
+                _buildSidebarItem(icon: Icons.logout, label: 'Logout', context: context),
               ],
             ),
           ),
@@ -75,12 +74,12 @@ class Sidebar extends StatelessWidget {
               children: [
                 CircleAvatar(
                   backgroundImage: NetworkImage(
-                      'https://www.google.com/url?sa=i&url=https%3A%2F%2Fralfvanveen.com%2Fen%2Fglossary%2Fplaceholder%2F&psig=AOvVaw3t3IH2mOwx2t88YV96GzO4&ust=1740276173799000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCJi-64-Y1osDFQAAAAAdAAAAABAE'), // Placeholder image
+                      'https://via.placeholder.com/150'), // Placeholder image
                   radius: 20,
                 ),
                 SizedBox(width: 10),
                 Text(
-                  'Paul',
+                  _username, // Display the dynamically fetched username
                   style: TextStyle(color: Colors.white),
                 ),
               ],
@@ -91,39 +90,21 @@ class Sidebar extends StatelessWidget {
     );
   }
 
-  Widget _buildSidebarItem({
-    required IconData icon,
-    required String label,
-    required BuildContext context,
-  }) {
-    return Container(
-      child: ListTile(
-        leading: Icon(icon, color: Colors.white),
-        title: Text(
-          label,
-          style: TextStyle(color: Colors.white),
-        ),
-        onTap: () {
-          if (label == 'Plant Progress') {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => HomeScreen()),
-            );
-          } else if (label == 'Request') {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => RequestScreen()),
-            );
-          } else if (label == 'Profile') {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => ProfileScreen()),
-            );
-          } else if (label == 'Logout') {
-            _showLogoutDialog(context);
-          }
-        },
-      ),
+  Widget _buildSidebarItem({required IconData icon, required String label, required BuildContext context}) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.white),
+      title: Text(label, style: TextStyle(color: Colors.white)),
+      onTap: () {
+        if (label == 'Plant Progress') {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => HomeScreen()));
+        } else if (label == 'Request') {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => RequestScreen()));
+        } else if (label == 'Profile') {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => ProfileScreen()));
+        } else if (label == 'Logout') {
+          _showLogoutDialog(context);
+        }
+      },
     );
   }
 

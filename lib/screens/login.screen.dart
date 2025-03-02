@@ -192,6 +192,25 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 50), backgroundColor: Colors.green),
                 child: _isLoading ? CircularProgressIndicator(color: Colors.white) : Text('Submit'),
               ),
+
+              SizedBox(height: 16), // Add spacing before the register button
+
+              // Register Navigation
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text("Don't have an account?", style: TextStyle(color: Colors.black)),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => RegisterScreen()),
+                      );
+                    },
+                    child: Text('Register', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
