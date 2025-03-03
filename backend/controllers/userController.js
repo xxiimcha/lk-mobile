@@ -34,10 +34,9 @@ const generateToken = (user) => {
     { expiresIn: '1h' }
   );
 };
-
 // Register a new user
 exports.registerUser = async (req, res) => {
-  const { username, email, password, role } = req.body;
+  const { name, username, email, password, role } = req.body;
 
   try {
     const existingUser = await User.findOne({ email });
@@ -48,6 +47,7 @@ exports.registerUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new User({
+      name,
       username,
       email,
       password: hashedPassword,
@@ -59,6 +59,7 @@ exports.registerUser = async (req, res) => {
       message: 'User registered successfully',
       user: {
         id: newUser._id,
+        name: newUser.name,
         username: newUser.username,
         email: newUser.email,
         role: newUser.role,
@@ -69,6 +70,7 @@ exports.registerUser = async (req, res) => {
     sendErrorResponse(res, 500, 'Server error');
   }
 };
+
 
 // Login user
 exports.loginUser = async (req, res) => {
