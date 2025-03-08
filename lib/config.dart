@@ -1,6 +1,6 @@
 class Config {
   // API Configuration
-  static const String apiUrl = 'http://localhost:5000';
+  static const String apiUrl = 'https://lk-mobile-three.vercel.app';
 
   // SMTP Configuration
   static const String smtpHost = 'smtp.gmail.com'; // SMTP host (e.g., Gmail)
