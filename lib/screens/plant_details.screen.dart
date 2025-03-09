@@ -1,5 +1,7 @@
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:video_player/video_player.dart';
 import 'package:tflite/tflite.dart';
@@ -91,25 +93,38 @@ Future<void> _loadVideosFromFirebase() async {
 }
 
 
-  // Analyze plant progress using TFLite
-  Future<void> _analyzePlantProgress() async {
-    try {
-      var recognitions = await Tflite.runModelOnImage(
-        path: "path/to/your/image.jpg",
-        numResults: 1,
-        threshold: 0.5,
-        asynch: true,
-      );
+Future<void> _analyzePlantProgress() async {
+  final ImagePicker picker = ImagePicker();
+  final XFile? imageFile = await picker.pickImage(source: ImageSource.camera);
 
-      if (recognitions != null && recognitions.isNotEmpty) {
-        setState(() {
-          progress = recognitions[0]['confidence'] * 100;
-        });
-      }
-    } catch (e) {
-      print("Error analyzing plant progress: $e");
-    }
+  if (imageFile == null) {
+    print("No image selected.");
+    return;
   }
+
+  try {
+    var recognitions = await Tflite.runModelOnImage(
+      path: imageFile.path,  // Path of the captured image
+      numResults: 1,         // Get only top result
+      threshold: 0.5,
+      asynch: true,
+    );
+
+    if (recognitions != null && recognitions.isNotEmpty) {
+      setState(() {
+        progress = recognitions[0]['confidence'] * 100; // Extract confidence score
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Progress updated based on analysis!")),
+      );
+    } else {
+      print("No recognition results.");
+    }
+  } catch (e) {
+    print("Error analyzing plant progress: $e");
+  }
+}
 
   @override
   void dispose() {
@@ -145,9 +160,6 @@ Future<void> _loadVideosFromFirebase() async {
             ElevatedButton(
               onPressed: () async {
                 await _analyzePlantProgress();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Progress updated based on analysis!")),
-                );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green.shade700,
