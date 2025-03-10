@@ -1,10 +1,13 @@
 import 'dart:io' show Platform;
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:video_player/video_player.dart';
-import 'package:tflite/tflite.dart';
+import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
+import 'dart:typed_data';
+import 'package:image/image.dart' as img;
 
 class PlantDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> plant;
@@ -31,17 +34,17 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
     _loadVideosFromFirebase();
   }
 
-  // Load TFLite model
+  late tfl.Interpreter _interpreter;
+
   Future<void> _loadTFLiteModel() async {
     try {
-      String? res = await Tflite.loadModel(
-        model: "assets/plant_growth_stage_model.tflite",
-      );
-      print("Model loaded: $res");
+      _interpreter = await tfl.Interpreter.fromAsset("assets/plant_growth_stage_model.tflite");
+      print("Model loaded successfully");
     } catch (e) {
       print("Error loading TFLite model: $e");
     }
   }
+
 
 Future<void> _loadVideosFromFirebase() async {
   try {
@@ -93,6 +96,37 @@ Future<void> _loadVideosFromFirebase() async {
 }
 
 
+List<List<List<double>>> preprocessImage(String imagePath) {
+  // Load the image
+  File imageFile = File(imagePath);
+  Uint8List imageBytes = imageFile.readAsBytesSync();
+  img.Image? image = img.decodeImage(imageBytes);
+
+  if (image == null) {
+    throw Exception("Error decoding image.");
+  }
+
+  // Resize the image to match the model input shape (e.g., 224x224)
+  img.Image resizedImage = img.copyResize(image, width: 224, height: 224);
+
+  // Convert image pixels to a 3D list (normalized between 0 and 1)
+  List<List<List<double>>> input = List.generate(
+    224,
+    (y) => List.generate(
+      224,
+      (x) {
+        img.Pixel pixel = resizedImage.getPixel(x, y);
+        return [
+          pixel.r.toDouble() / 255.0, // Normalize R channel
+          pixel.g.toDouble() / 255.0, // Normalize G channel
+          pixel.b.toDouble() / 255.0, // Normalize B channel
+        ];
+      },
+    ),
+  );
+
+  return input;
+}
 Future<void> _analyzePlantProgress() async {
   final ImagePicker picker = ImagePicker();
   final XFile? imageFile = await picker.pickImage(source: ImageSource.camera);
@@ -103,37 +137,35 @@ Future<void> _analyzePlantProgress() async {
   }
 
   try {
-    var recognitions = await Tflite.runModelOnImage(
-      path: imageFile.path,  // Path of the captured image
-      numResults: 1,         // Get only top result
-      threshold: 0.5,
-      asynch: true,
+    // Convert image into required input format for model
+    List<List<List<double>>> input = preprocessImage(imageFile.path);
+    var output = List.filled(1, 0).reshape([1, 1]); // Modify based on your model's output shape
+
+    _interpreter.run(input, output);
+
+    setState(() {
+      progress = output[0][0] * 100;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Progress updated based on analysis!")),
     );
 
-    if (recognitions != null && recognitions.isNotEmpty) {
-      setState(() {
-        progress = recognitions[0]['confidence'] * 100; // Extract confidence score
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Progress updated based on analysis!")),
-      );
-    } else {
-      print("No recognition results.");
-    }
   } catch (e) {
     print("Error analyzing plant progress: $e");
   }
 }
 
+
   @override
   void dispose() {
-    Tflite.close();
+    _interpreter.close();
     for (var controller in videoControllers) {
       controller.dispose();
     }
     super.dispose();
   }
+
 
   @override
   Widget build(BuildContext context) {

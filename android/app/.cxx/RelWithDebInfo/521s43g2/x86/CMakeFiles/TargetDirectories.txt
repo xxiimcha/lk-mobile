@@ -1,0 +1,2 @@
+F:/Commissions/luntiang-kamay/mobile/luntiangkamay/android/app/.cxx/RelWithDebInfo/521s43g2/x86/CMakeFiles/edit_cache.dir
+F:/Commissions/luntiang-kamay/mobile/luntiangkamay/android/app/.cxx/RelWithDebInfo/521s43g2/x86/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,2 @@
+F:/Commissions/luntiang-kamay/mobile/luntiangkamay/android/app/.cxx/RelWithDebInfo/4m2ug434/armeabi-v7a/CMakeFiles/edit_cache.dir
+F:/Commissions/luntiang-kamay/mobile/luntiangkamay/android/app/.cxx/RelWithDebInfo/4m2ug434/armeabi-v7a/CMakeFiles/rebuild_cache.dir

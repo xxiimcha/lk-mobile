@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.luntiangkamay"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35 // Ensure this matches the latest stable version
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.luntiangkamay"
-        minSdkVersion 21
+        minSdkVersion 23
         targetSdkVersion 33
         versionCode 1
         versionName "1.0"
@@ -30,13 +30,24 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.debug
+            minifyEnabled false
+            shrinkResources false
         }
     }
 }
 
 dependencies {
-    implementation 'org.tensorflow:tensorflow-lite:+'
-    // Add other dependencies here if needed.
+    implementation 'org.tensorflow:tensorflow-lite:2.8.0'
+
+    // Exclude conflicting modules
+    implementation('org.tensorflow:tensorflow-lite:2.11.0') {
+        exclude group: 'org.tensorflow.lite', module: 'tensorflow-lite-api'
+    }
+
+    // Firebase dependencies (if needed)
+    implementation platform('com.google.firebase:firebase-bom:32.2.0')
+    implementation 'com.google.firebase:firebase-auth-ktx'
+    implementation 'com.google.firebase:firebase-firestore-ktx'
 }
 
 flutter {
