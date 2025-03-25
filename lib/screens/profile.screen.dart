@@ -151,54 +151,103 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Profile'),
-        backgroundColor: Colors.green.shade700,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      title: Text('My Profile'),
+      backgroundColor: Colors.green.shade700,
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back),
+        onPressed: () => Navigator.of(context).pop(),
       ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      _buildProfileImage(),
-                      SizedBox(height: 20),
-                      _buildTextField('Full Name', _nameController),
-                      SizedBox(height: 20),
-                      _buildTextField('Username', _usernameController),
-                      SizedBox(height: 20),
-                      _buildTextField('Email', _emailController),
-                      SizedBox(height: 30),
-                      ElevatedButton(
-                        onPressed: _saveProfile,
-                        child: Text('Save Profile'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade700,
-                          padding: EdgeInsets.symmetric(vertical: 16.0),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          minimumSize: Size(double.infinity, 50),
-                        ),
+    ),
+    body: _isLoading
+        ? Center(child: CircularProgressIndicator())
+        : SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    Text(
+                      'Update Your Info',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade800,
                       ),
-                    ],
-                  ),
+                    ),
+                    SizedBox(height: 10),
+                    Divider(thickness: 1, color: Colors.green.shade300),
+                    SizedBox(height: 30),
+
+                    // Name Field
+                    _buildLabeledTextField(
+                      label: 'Full Name',
+                      controller: _nameController,
+                      icon: Icons.person,
+                    ),
+                    SizedBox(height: 20),
+
+                    // Username Field
+                    _buildLabeledTextField(
+                      label: 'Username',
+                      controller: _usernameController,
+                      icon: Icons.account_circle,
+                    ),
+                    SizedBox(height: 20),
+
+                    // Email Field
+                    _buildLabeledTextField(
+                      label: 'Email',
+                      controller: _emailController,
+                      icon: Icons.email,
+                    ),
+                    SizedBox(height: 40),
+
+                    // Save Button
+                    ElevatedButton.icon(
+                      onPressed: _saveProfile,
+                      icon: Icon(Icons.save),
+                      label: Text('Save Changes'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green.shade700,
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        minimumSize: Size(double.infinity, 50),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-    );
-  }
+          ),
+  );
+}
+
+Widget _buildLabeledTextField({
+  required String label,
+  required TextEditingController controller,
+  required IconData icon,
+}) {
+  return TextFormField(
+    controller: controller,
+    validator: (value) =>
+        (value == null || value.isEmpty) ? 'Please enter $label' : null,
+    decoration: InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      filled: true,
+      fillColor: Colors.grey.shade100,
+    ),
+  );
+}
+
 
 void _showSnackBar(String message) {
   ScaffoldMessenger.of(context).showSnackBar(
