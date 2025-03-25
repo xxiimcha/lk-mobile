@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
@@ -11,24 +13,27 @@ class VideoPlayerWidget extends StatefulWidget {
 }
 
 class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
-  late VideoPlayerController _controller;
-  bool isInitialized = false;
+  VideoPlayerController? _controller;
+  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    print("🎥 Initializing Video Player for URL: ${widget.videoUrl}");
-    _initializeVideo();
+    _initializePlayer();
   }
 
-  Future<void> _initializeVideo() async {
+  Future<void> _initializePlayer() async {
     try {
-      _controller = VideoPlayerController.network(widget.videoUrl);
-      await _controller.initialize();
-      setState(() {
-        isInitialized = true;
-      });
-      print("✅ Video Player initialized successfully");
+      if (kIsWeb || Platform.isAndroid || Platform.isIOS) {
+        _controller = VideoPlayerController.network(widget.videoUrl);
+        await _controller!.initialize();
+        setState(() {
+          _isInitialized = true;
+        });
+        _controller!.play();
+      } else {
+        print("🚫 Platform not supported for video playback.");
+      }
     } catch (e) {
       print("❌ Error initializing video player: $e");
     }
@@ -36,34 +41,19 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return isInitialized
-        ? Column(
-            children: [
-              AspectRatio(
-                aspectRatio: _controller.value.aspectRatio,
-                child: VideoPlayer(_controller),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.play_arrow, color: Colors.green),
-                    onPressed: () => _controller.play(),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.pause, color: Colors.red),
-                    onPressed: () => _controller.pause(),
-                  ),
-                ],
-              ),
-            ],
-          )
-        : Center(child: CircularProgressIndicator());
+    if (!_isInitialized || _controller == null) {
+      return Center(child: Text("Video not supported on this platform."));
+    }
+
+    return AspectRatio(
+      aspectRatio: _controller!.value.aspectRatio,
+      child: VideoPlayer(_controller!),
+    );
   }
 }

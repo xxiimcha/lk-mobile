@@ -7,6 +7,8 @@ import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import '../widgets/VideoPlayerWidget.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class PlantDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> plant;
@@ -40,52 +42,63 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
     }
   }
 
-  Future<void> _loadVideosFromCloudinary() async {
-    try {
-      if (widget.plant == null || !widget.plant.containsKey('name') || widget.plant['name'] == null) {
-        print("❌ Error: Plant name is missing or null");
-        return;
-      }
-
-      final plantName = widget.plant['name'].toString().toLowerCase().trim();
-      print("🔍 Fetching videos for plant: $plantName");
-
-      // Cloudinary video URL format
-      final cloudinaryBaseUrl = "https://res.cloudinary.com/dcavbnkzz/video/cloud_storage/videos/$plantName/";
-
-      // List of videos (Ensure correct video names exist in Cloudinary)
-      List<Map<String, String>> videos = [
-        {
-          'title': 'Planting Guide',
-          'url': "${cloudinaryBaseUrl}planting_guide.mp4",
-        },
-        {
-          'title': 'Watering Instructions',
-          'url': "${cloudinaryBaseUrl}watering_guide.mp4",
-        },
-        {
-          'title': 'Growth Monitoring',
-          'url': "${cloudinaryBaseUrl}growth_monitoring.mp4",
-        },
-      ];
-
-      print("✅ Video URLs generated:");
-      for (var video in videos) {
-        print("   - ${video['title']}: ${video['url']}");
-      }
-
-      setState(() {
-        videoDetails = videos;
-        isLoadingVideos = false;
-      });
-
-    } catch (e) {
-      print("❌ Error loading videos from Cloudinary: $e");
-      setState(() {
-        isLoadingVideos = false;
-      });
+Future<void> _loadVideosFromCloudinary() async {
+  try {
+    if (widget.plant == null || !widget.plant.containsKey('name') || widget.plant['name'] == null) {
+      print("❌ Error: Plant name is missing or null");
+      return;
     }
+
+    final plantName = widget.plant['name'].toString().toLowerCase().trim();
+    print("🔍 Fetching videos for plant: $plantName");
+
+    // Your backend URL (adjust accordingly)
+    final apiUrl = Uri.parse('https://lk-mobile-three.vercel.app/api/videos/$plantName');
+
+    final response = await http.get(apiUrl);
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+
+      setState(() {
+        videoDetails = data.map<Map<String, String>>((item) => {
+          'title': item['title'] ?? 'Untitled',
+          'url': item['url'],
+        }).toList();
+
+        // Sort videos based on P1, P2, etc.
+        videoDetails.sort((a, b) {
+          final aMatch = RegExp(r'_P(\d+)_').firstMatch(a['title']!);
+          final bMatch = RegExp(r'_P(\d+)_').firstMatch(b['title']!);
+
+          final aNum = aMatch != null ? int.tryParse(aMatch.group(1)!) ?? 0 : 0;
+          final bNum = bMatch != null ? int.tryParse(bMatch.group(1)!) ?? 0 : 0;
+
+          return aNum.compareTo(bNum);
+        });
+
+        isLoadingVideos = false;
+      });
+
+      print("✅ Loaded ${videoDetails.length} videos.");
+    } else {
+      print("❌ Error fetching videos: ${response.body}");
+      setState(() => isLoadingVideos = false);
+    }
+  } catch (e) {
+    print("❌ Exception fetching videos: $e");
+    setState(() => isLoadingVideos = false);
   }
+}
+
+String _formatTitle(String rawTitle) {
+  final match = RegExp(r'_P(\d+)_').firstMatch(rawTitle);
+  if (match != null && match.groupCount >= 1) {
+    final partNumber = match.group(1);
+    return 'Part $partNumber';
+  }
+  return 'Tutorial Video';
+}
 
   Future<void> _analyzePlantProgress() async {
     final ImagePicker picker = ImagePicker();
@@ -149,72 +162,89 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.plant['name']} Details'),
-        backgroundColor: Colors.green.shade700,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+ @override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      title: Text('${widget.plant['name']} Details'),
+      backgroundColor: Colors.green.shade700,
+    ),
+    body: Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               widget.plant['name'] ?? 'Unknown Plant',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green.shade900),
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.green.shade900),
             ),
-            SizedBox(height: 10),
+            SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: progress / 100,
+              backgroundColor: Colors.green.shade100,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.green.shade700),
+              minHeight: 10,
+            ),
+            SizedBox(height: 6),
             Text(
-              'Progress: ${(progress).toStringAsFixed(1)}%',
-              style: TextStyle(fontSize: 18, color: Colors.green.shade700),
+              'Progress: ${progress.toStringAsFixed(1)}%',
+              style: TextStyle(fontSize: 18, color: Colors.green.shade800),
             ),
             SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () async {
-                await _analyzePlantProgress();
-              },
+            ElevatedButton.icon(
+              onPressed: _analyzePlantProgress,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green.shade700,
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               ),
-              child: Text(
-                "Check Progress",
-                style: TextStyle(color: Colors.white),
-              ),
+              icon: Icon(Icons.camera_alt, color: Colors.white),
+              label: Text("Check Progress", style: TextStyle(color: Colors.white)),
             ),
-            SizedBox(height: 20),
+            SizedBox(height: 30),
             Text(
-              'Tutorials',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green.shade800),
+              'Tutorial Videos',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green.shade800),
             ),
             SizedBox(height: 10),
             isLoadingVideos
                 ? Center(child: CircularProgressIndicator())
-                : Expanded(
-                    child: ListView.builder(
-                      itemCount: videoDetails.length,
-                      itemBuilder: (context, index) {
-                        final video = videoDetails[index];
-                        print("📹 Loading video: ${video['title']} from ${video['url']}");
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(video['title']!, style: TextStyle(fontWeight: FontWeight.bold)),
-                            AspectRatio(
-                              aspectRatio: 16 / 9,
-                              child: VideoPlayerWidget(videoUrl: video['url']!), // Custom Video Player
+                : videoDetails.isEmpty
+                    ? Text("No videos available.")
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        physics: NeverScrollableScrollPhysics(),
+                        itemCount: videoDetails.length,
+                        itemBuilder: (context, index) {
+                          final video = videoDetails[index];
+                          return Card(
+                            margin: EdgeInsets.symmetric(vertical: 10),
+                            elevation: 3,
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _formatTitle(video['title']!),
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                  SizedBox(height: 8),
+                                  AspectRatio(
+                                    aspectRatio: 16 / 9,
+                                    child: VideoPlayerWidget(videoUrl: video['url']!),
+                                  ),
+                                ],
+                              ),
                             ),
-                            SizedBox(height: 10),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
+                          );
+                        },
+                      ),
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
+
 }
