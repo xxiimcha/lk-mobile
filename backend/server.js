@@ -7,6 +7,7 @@ const userRoutes = require('./routes/userRoutes');
 const seedRequestRoutes = require('./routes/seedRequestRoutes');
 const plantRoutes = require('./routes/plantRoutes'); // Import the plant routes
 const path = require('path');
+const cloudinaryRoutes = require('./cloudinary-list');
 
 const app = express();
 app.use(cors());
@@ -25,6 +26,7 @@ mongoose.connect(mongoURI, {
 app.use('/api/users', userRoutes);
 app.use('/api/seed-requests', seedRequestRoutes);
 app.use('/api/plants', plantRoutes); // Add plant routes
+app.use('/api/videos', cloudinaryRoutes);
 
 // Server listening
 const PORT = process.env.PORT || 5000;
