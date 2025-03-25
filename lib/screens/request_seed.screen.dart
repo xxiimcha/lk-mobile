@@ -93,21 +93,33 @@ Future<void> _submitRequest() async {
     if (_image != null) {
       try {
         File imageFile = File(_image!.path);
-        String fileName = 'seed_requests/${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-        // Upload image to Firebase Storage
-        print("Uploading image to Firebase Storage...");
-        UploadTask uploadTask = FirebaseStorage.instance.ref(fileName).putFile(imageFile);
-        TaskSnapshot snapshot = await uploadTask;
+        var request = http.MultipartRequest(
+          'POST',
+          Uri.parse('https://api.cloudinary.com/v1_1/dcavbnkzz/image/upload'),
+        );
 
-        // Get the download URL
-        imageUrl = await snapshot.ref.getDownloadURL();
-        print("Image uploaded successfully. URL: $imageUrl");
+        request.files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+        request.fields['upload_preset'] = 'cloud_storage'; // replace this
+
+        var response = await request.send();
+
+        if (response.statusCode == 200) {
+          final res = await http.Response.fromStream(response);
+          final data = jsonDecode(res.body);
+          imageUrl = data['secure_url'];
+          print("✅ Uploaded to Cloudinary: $imageUrl");
+        } else {
+          print("❌ Cloudinary upload failed: ${response.statusCode}");
+          _showErrorDialog('Failed to upload image. Please try again.');
+          return;
+        }
       } catch (e) {
-        print("Error uploading image: $e");
-        _showErrorDialog('Failed to upload image. Please try again.');
+        print("❌ Cloudinary error: $e");
+        _showErrorDialog('An error occurred while uploading. Please try again.');
         return;
       }
+
     } else {
       print("No image selected, proceeding without image.");
     }
@@ -145,26 +157,62 @@ Future<void> _submitRequest() async {
   }
 }
 
-  void _showSuccessDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Request Submitted'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Close dialog
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => RequestScreen()), // Navigate to RequestScreen
-              );
-            },
-            child: Text('OK'),
-          ),
-        ],
+void _showSuccessDialog(String message) {
+  showDialog(
+    context: context,
+    builder: (context) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.check_circle, size: 60, color: Colors.green.shade700),
+            SizedBox(height: 16),
+            Text(
+              'Success!',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.green.shade800,
+              ),
+            ),
+            SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade800,
+              ),
+            ),
+            SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (context) => RequestScreen()),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green.shade700,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              ),
+              child: Text(
+                'Go to Requests',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ),
+          ],
+        ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _showErrorDialog(String message) {
     showDialog(
