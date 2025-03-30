@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import '../widgets/VideoPlayerWidget.dart';
@@ -23,23 +22,16 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
   List<Map<String, String>> videoDetails = [];
   bool isLoadingVideos = true;
   double progress = 0.0;
-  late tfl.Interpreter _interpreter;
+
+  String? predictedLabel;
+  String? predictedConfidence;
+  String? selectedImagePath;
 
   @override
   void initState() {
     super.initState();
-    print("Plant data received: ${widget.plant}"); // Debugging
-    _loadTFLiteModel();
+    print("Plant data received: ${widget.plant}");
     _loadVideosFromCloudinary();
-  }
-
-  Future<void> _loadTFLiteModel() async {
-    try {
-      _interpreter = await tfl.Interpreter.fromAsset("assets/plant_growth_stage_model.tflite");
-      print("✅ Model loaded successfully");
-    } catch (e) {
-      print("❌ Error loading TFLite model: $e");
-    }
   }
 
 Future<void> _loadVideosFromCloudinary() async {
@@ -97,68 +89,113 @@ String _formatTitle(String rawTitle) {
     final partNumber = match.group(1);
     return 'Part $partNumber';
   }
-  return 'Tutorial Video';
+  return 'Tutorial Video'; // fallback
 }
 
-  Future<void> _analyzePlantProgress() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? imageFile = await picker.pickImage(source: ImageSource.camera);
+Future<void> _analyzePlantProgress() async {
+  final ImageSource? source = await showDialog<ImageSource>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Select Image Source'),
+      actions: [
+        TextButton.icon(
+          icon: Icon(Icons.photo),
+          label: Text('Gallery'),
+          onPressed: () => Navigator.pop(context, ImageSource.gallery),
+        ),
+        TextButton.icon(
+          icon: Icon(Icons.camera_alt),
+          label: Text('Camera'),
+          onPressed: () {
+            // Allow camera only on supported platforms
+            if (Platform.isAndroid || Platform.isIOS) {
+              Navigator.pop(context, ImageSource.camera);
+            } else {
+              Navigator.pop(context, ImageSource.gallery); // fallback
+            }
+          },
+        ),
+      ],
+    ),
+  );
 
-    if (imageFile == null) {
-      print("⚠ No image selected.");
-      return;
-    }
+  if (source == null) return;
 
-    try {
-      List<List<List<double>>> input = preprocessImage(imageFile.path);
-      var output = List.filled(1, 0).reshape([1, 1]);
+  final picker = ImagePicker();
+  final XFile? imageFile = await picker.pickImage(source: source);
 
-      _interpreter.run(input, output);
+  if (imageFile == null) {
+    print("⚠ No image selected.");
+    return;
+  }
+
+  try {
+    final uri = Uri.parse('https://lk-flask.onrender.com/predict'); // Replace with your backend URL
+
+    var request = http.MultipartRequest('POST', uri);
+    request.files.add(await http.MultipartFile.fromPath('image', imageFile.path));
+
+    final response = await request.send();
+
+    if (response.statusCode == 200) {
+      final respStr = await response.stream.bytesToString();
+      final decoded = jsonDecode(respStr);
+
+      String predictedLabel = decoded['prediction'];
+      String predictedConfidence = (decoded['confidence'] * 100).toStringAsFixed(1);
+
       setState(() {
-        progress = output[0][0] * 100;
+        this.predictedLabel = predictedLabel;
+        this.predictedConfidence = predictedConfidence;
+        this.progress = double.tryParse(predictedConfidence) ?? 0.0;
+        this.selectedImagePath = imageFile.path;
       });
 
+      print("✅ Prediction: $predictedLabel ($predictedConfidence%)");
+    } else {
+      print("❌ Server error: ${response.statusCode}");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("✅ Progress updated based on analysis!")),
+        SnackBar(content: Text("Prediction failed: ${response.statusCode}")),
       );
-
-    } catch (e) {
-      print("❌ Error analyzing plant progress: $e");
     }
-  }
-
-  List<List<List<double>>> preprocessImage(String imagePath) {
-    File imageFile = File(imagePath);
-    Uint8List imageBytes = imageFile.readAsBytesSync();
-    img.Image? image = img.decodeImage(imageBytes);
-
-    if (image == null) {
-      throw Exception("Error decoding image.");
-    }
-
-    img.Image resizedImage = img.copyResize(image, width: 224, height: 224);
-
-    List<List<List<double>>> input = List.generate(
-      224,
-      (y) => List.generate(
-        224,
-        (x) {
-          img.Pixel pixel = resizedImage.getPixel(x, y);
-          return [
-            pixel.r.toDouble() / 255.0,
-            pixel.g.toDouble() / 255.0,
-            pixel.b.toDouble() / 255.0,
-          ];
-        },
-      ),
+  } catch (e) {
+    print("❌ Error sending image to Flask: $e");
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Prediction failed.")),
     );
-
-    return input;
   }
+}
+
+Future<List<String>> _loadLabels() async {
+  final labelString = await DefaultAssetBundle.of(context).loadString('assets/label_names.txt');
+  return labelString.split('\n').where((line) => line.trim().isNotEmpty).toList();
+}
+
+Uint8List imageToByteListFloat32(img.Image image, int inputSize) {
+  var convertedBytes = Float32List(1 * inputSize * inputSize * 3);
+  var buffer = Float32List.view(convertedBytes.buffer);
+  int pixelIndex = 0;
+
+  for (int y = 0; y < inputSize; y++) {
+    for (int x = 0; x < inputSize; x++) {
+      final pixel = image.getPixel(x, y);
+
+      final r = (pixel >> 16) & 0xFF;
+      final g = (pixel >> 8) & 0xFF;
+      final b = (pixel) & 0xFF;
+
+      buffer[pixelIndex++] = r / 255.0;
+      buffer[pixelIndex++] = g / 255.0;
+      buffer[pixelIndex++] = b / 255.0;
+    }
+  }
+
+  return convertedBytes.buffer.asUint8List();
+}
+
 
   @override
   void dispose() {
-    _interpreter.close();
     super.dispose();
   }
 
@@ -191,6 +228,53 @@ Widget build(BuildContext context) {
               'Progress: ${progress.toStringAsFixed(1)}%',
               style: TextStyle(fontSize: 18, color: Colors.green.shade800),
             ),
+            SizedBox(height: 16),
+            if (predictedLabel != null && predictedConfidence != null)
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                padding: EdgeInsets.all(12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    if (selectedImagePath != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.file(
+                          File(selectedImagePath!),
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Prediction:',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green.shade900),
+                          ),
+                          Text(
+                            predictedLabel!,
+                            style: TextStyle(fontSize: 18, color: Colors.black87),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Confidence: $predictedConfidence%',
+                            style: TextStyle(fontSize: 14, color: Colors.green.shade700),
+                          ),
+                        ],
+                      ),
+                    )
+                  ],
+                ),
+              ),
+
             SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: _analyzePlantProgress,

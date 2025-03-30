@@ -35,8 +35,8 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  image_picker: ^1.1.2
-  tflite_flutter: ^0.11.0
+  image_picker: ^1.0.4
+  # tflite_flutter_helper: ^0.3.0
   http: ^1.2.2
   shared_preferences: ^2.3.2
   video_player: ^2.9.3
@@ -45,7 +45,7 @@ dependencies:
   firebase_core: ^3.8.0
   camera: ^0.11.1
   path_provider: ^2.1.5
-  image: ^4.5.3
+  image: ^3.0.2
   video_player_web: ^2.3.4
 
 dev_dependencies:
@@ -72,3 +72,5 @@ flutter:
 
   assets:
     - assets/
+    - assets/plant_model.tflite
+    - assets/label_names.txt

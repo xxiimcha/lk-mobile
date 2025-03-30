@@ -204,6 +204,11 @@ Widget build(BuildContext context) {
                       label: 'Email',
                       controller: _emailController,
                       icon: Icons.email,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return 'Please enter Email';
+                        if (!value.contains('@')) return 'Enter a valid email address';
+                        return null;
+                      },
                     ),
                     SizedBox(height: 40),
 
@@ -233,10 +238,11 @@ Widget _buildLabeledTextField({
   required String label,
   required TextEditingController controller,
   required IconData icon,
+  String? Function(String?)? validator, // Allow custom validator
 }) {
   return TextFormField(
     controller: controller,
-    validator: (value) =>
+    validator: validator ?? (value) =>
         (value == null || value.isEmpty) ? 'Please enter $label' : null,
     decoration: InputDecoration(
       labelText: label,
