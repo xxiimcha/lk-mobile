@@ -130,7 +130,7 @@ Future<void> _analyzePlantProgress() async {
   }
 
   try {
-    final uri = Uri.parse('https://lk-flask.onrender.com/predict'); // Replace with your backend URL
+    final uri = Uri.parse('http://127.0.0.1:5000/predict'); // Replace with your backend URL
 
     var request = http.MultipartRequest('POST', uri);
     request.files.add(await http.MultipartFile.fromPath('image', imageFile.path));
