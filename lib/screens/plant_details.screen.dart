@@ -20,6 +20,27 @@ class PlantDetailsScreen extends StatefulWidget {
 }
 
 class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
+  final Map<String, Map<String, String>> videoDescriptions = {
+    'okra': {
+      'P1': 'This video explains the initial steps in planting okra. The speaker starts by introducing the benefits of growing okra...',
+      'P2': 'This video is a continuation of the okra planting guide, focusing on plant maintenance and harvesting...',
+      'P3': 'This video demonstrates proper pest management techniques for growing okra...',
+      'P4': 'This video covers the final stage of okra cultivation, focusing on harvesting, seed saving, and end-of-season care...',
+    },
+    'sili': {
+      'P1': 'This video discusses how to grow chili peppers (sili) in a backyard or garden setting...',
+      'P2': 'This video demonstrates how to transplant chili plants into their permanent pots...',
+      'P3': 'This part of the video explains the care steps before chili plants start flowering...',
+      'P4': 'This part of the video showcases the successful result of properly caring for chili plants...',
+    },
+    'talong': {
+      'P1': 'It showcases the proper techniques for preparing seedbeds, selecting healthy seeds...',
+      'P2': 'This video covers the transplanting stage in urban gardening...',
+      'P3': 'This video demonstrates the proper application of fertilizer in urban gardening...',
+      'P4': 'This video covers the final stage of eggplant cultivation, focusing on harvesting techniques...',
+    },
+  };
+
   List<Map<String, String>> videoDetails = [];
   bool isLoadingVideos = true;
   double progress = 0.0;
@@ -108,7 +129,6 @@ Future<void> _analyzePlantProgress() async {
           icon: Icon(Icons.camera_alt),
           label: Text('Camera'),
           onPressed: () {
-            // Allow camera only on supported platforms
             if (Platform.isAndroid || Platform.isIOS) {
               Navigator.pop(context, ImageSource.camera);
             } else {
@@ -120,23 +140,31 @@ Future<void> _analyzePlantProgress() async {
     ),
   );
 
-  if (source == null) return;
+  if (source == null) {
+    print("📛 No image source selected.");
+    return;
+  }
 
   final picker = ImagePicker();
   final XFile? imageFile = await picker.pickImage(source: source);
 
   if (imageFile == null) {
-    print("⚠ No image selected.");
+    print("⚠ User canceled image picking.");
     return;
   }
 
-  try {
-    final uri = Uri.parse('https://lk-flask.onrender.com/predict'); // Replace with your backend URL
+  print("📸 Image picked from: ${imageFile.path}");
 
+  try {
+    final uri = Uri.parse('https://lk-flask.onrender.com/predict');
     var request = http.MultipartRequest('POST', uri);
     request.files.add(await http.MultipartFile.fromPath('image', imageFile.path));
 
+    print("⬆ Sending image to Flask server for analysis...");
+
     final response = await request.send();
+
+    print("⏳ Waiting for Flask server response...");
 
     if (response.statusCode == 200) {
       final respStr = await response.stream.bytesToString();
@@ -145,6 +173,10 @@ Future<void> _analyzePlantProgress() async {
       String predictedLabel = decoded['prediction'];
       String predictedConfidence = (decoded['confidence'] * 100).toStringAsFixed(1);
 
+      print("✅ Received prediction from Flask:");
+      print("   Label: $predictedLabel");
+      print("   Confidence: $predictedConfidence");
+
       setState(() {
         this.predictedLabel = predictedLabel;
         this.predictedConfidence = predictedConfidence;
@@ -152,21 +184,16 @@ Future<void> _analyzePlantProgress() async {
         this.selectedImagePath = imageFile.path;
       });
 
-      // 👇 Save progress to the database
+      print("💾 Saving prediction to backend...");
       await _saveProgressToDB(predictedLabel, predictedConfidence);
-
-      print("Prediction: $predictedLabel ($predictedConfidence%)");
-
-
-      print("Prediction: $predictedLabel ($predictedConfidence%)");
     } else {
-      print("Server error: ${response.statusCode}");
+      print("❌ Flask server responded with error: ${response.statusCode}");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Prediction failed: ${response.statusCode}")),
       );
     }
   } catch (e) {
-    print("Error sending image to Flask: $e");
+    print("❌ Exception during image upload or analysis: $e");
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("Prediction failed.")),
     );
@@ -204,21 +231,23 @@ Uint8List imageToByteListFloat32(img.Image image, int inputSize) {
 
 Future<void> _saveProgressToDB(String label, String confidence) async {
   try {
-    final uri = Uri.parse('${Config.apiUrl}/api/seed-request/update-progress');
+    final uri = Uri.parse('${Config.apiUrl}/api/seed-requests/update-progress');
 
-    final body = jsonEncode({
+    final payload = {
       "userId": widget.plant['userId'],
       "seedType": widget.plant['name'],
       "progress": {
-        "label": label,
-        "confidence": confidence
+        "label": label.toString(),                 // make sure it's string
+        "confidence": double.parse(confidence)     // ensure it's a number, not string
       }
-    });
+    };
+
+    print('🧾 Sending payload: $payload');
 
     final response = await http.post(
       uri,
       headers: {'Content-Type': 'application/json'},
-      body: body,
+      body: jsonEncode(payload),
     );
 
     if (response.statusCode == 200) {
@@ -230,8 +259,6 @@ Future<void> _saveProgressToDB(String label, String confidence) async {
     print("❌ Error saving progress: $e");
   }
 }
-
-
   @override
   void dispose() {
     super.dispose();
@@ -339,6 +366,15 @@ Widget build(BuildContext context) {
                         itemCount: videoDetails.length,
                         itemBuilder: (context, index) {
                           final video = videoDetails[index];
+
+                          // 🔍 Extract plant key and part (e.g., 'P1')
+                          final plantKey = widget.plant['name'].toString().toLowerCase();
+                          final partMatch = RegExp(r'P\d+').firstMatch(video['title'] ?? '');
+                          final partKey = partMatch != null ? partMatch.group(0)! : '';
+
+                          // 📄 Get the description from the map
+                          final description = videoDescriptions[plantKey]?[partKey] ?? 'No description available.';
+
                           return Card(
                             margin: EdgeInsets.symmetric(vertical: 10),
                             elevation: 3,
@@ -351,6 +387,11 @@ Widget build(BuildContext context) {
                                     _formatTitle(video['title']!),
                                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                   ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    description,
+                                    style: TextStyle(fontSize: 14, color: Colors.black87),
+                                  ),
                                   SizedBox(height: 8),
                                   AspectRatio(
                                     aspectRatio: 16 / 9,
@@ -362,6 +403,7 @@ Widget build(BuildContext context) {
                           );
                         },
                       ),
+
           ],
         ),
       ),
