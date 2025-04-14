@@ -38,3 +38,38 @@ exports.getSeedRequestsByUser = async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
+
+// Update progress for a specific seed request
+exports.updateSeedProgress = async (req, res) => {
+  try {
+    const { userId, seedType, progress } = req.body;
+
+    if (!userId || !seedType || !progress?.label || !progress?.confidence) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // Find and update the progress field
+    const updatedRequest = await SeedRequest.findOneAndUpdate(
+      { userId, seedType },
+      {
+        $set: {
+          [`progress.${progress.label}`]: parseFloat(progress.confidence),
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedRequest) {
+      return res.status(404).json({ message: "Seed request not found" });
+    }
+
+    res.status(200).json({
+      message: "Progress updated successfully",
+      seedRequest: updatedRequest,
+    });
+
+  } catch (error) {
+    console.error("Error updating seed progress:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};

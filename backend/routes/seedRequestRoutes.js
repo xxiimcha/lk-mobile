@@ -20,4 +20,6 @@ router.post('/', upload.single('image'), seedRequestController.createSeedRequest
 // Route to fetch seed requests by user ID
 router.get('/', seedRequestController.getSeedRequestsByUser);
 
+router.post('/update-progress', seedRequestController.updateSeedProgress);
+
 module.exports = router;

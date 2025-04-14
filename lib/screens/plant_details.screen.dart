@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 import '../widgets/VideoPlayerWidget.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config.dart';
 
 class PlantDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> plant;
@@ -60,8 +61,8 @@ Future<void> _loadVideosFromCloudinary() async {
 
         // Sort videos based on P1, P2, etc.
         videoDetails.sort((a, b) {
-          final aMatch = RegExp(r'_P(\d+)_').firstMatch(a['title']!);
-          final bMatch = RegExp(r'_P(\d+)_').firstMatch(b['title']!);
+          final aMatch = RegExp(r'P(\d+)').firstMatch(a['title']!);
+          final bMatch = RegExp(r'P(\d+)').firstMatch(b['title']!);
 
           final aNum = aMatch != null ? int.tryParse(aMatch.group(1)!) ?? 0 : 0;
           final bNum = bMatch != null ? int.tryParse(bMatch.group(1)!) ?? 0 : 0;
@@ -130,7 +131,7 @@ Future<void> _analyzePlantProgress() async {
   }
 
   try {
-    final uri = Uri.parse('http://127.0.0.1:5000/predict'); // Replace with your backend URL
+    final uri = Uri.parse('https://lk-flask.onrender.com/predict'); // Replace with your backend URL
 
     var request = http.MultipartRequest('POST', uri);
     request.files.add(await http.MultipartFile.fromPath('image', imageFile.path));
@@ -151,15 +152,21 @@ Future<void> _analyzePlantProgress() async {
         this.selectedImagePath = imageFile.path;
       });
 
-      print("✅ Prediction: $predictedLabel ($predictedConfidence%)");
+      // 👇 Save progress to the database
+      await _saveProgressToDB(predictedLabel, predictedConfidence);
+
+      print("Prediction: $predictedLabel ($predictedConfidence%)");
+
+
+      print("Prediction: $predictedLabel ($predictedConfidence%)");
     } else {
-      print("❌ Server error: ${response.statusCode}");
+      print("Server error: ${response.statusCode}");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Prediction failed: ${response.statusCode}")),
       );
     }
   } catch (e) {
-    print("❌ Error sending image to Flask: $e");
+    print("Error sending image to Flask: $e");
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("Prediction failed.")),
     );
@@ -191,6 +198,37 @@ Uint8List imageToByteListFloat32(img.Image image, int inputSize) {
   }
 
   return convertedBytes.buffer.asUint8List();
+}
+
+
+
+Future<void> _saveProgressToDB(String label, String confidence) async {
+  try {
+    final uri = Uri.parse('${Config.apiUrl}/api/seed-request/update-progress');
+
+    final body = jsonEncode({
+      "userId": widget.plant['userId'],
+      "seedType": widget.plant['name'],
+      "progress": {
+        "label": label,
+        "confidence": confidence
+      }
+    });
+
+    final response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: body,
+    );
+
+    if (response.statusCode == 200) {
+      print("✅ Progress saved successfully");
+    } else {
+      print("❌ Failed to save progress: ${response.body}");
+    }
+  } catch (e) {
+    print("❌ Error saving progress: $e");
+  }
 }
 
 

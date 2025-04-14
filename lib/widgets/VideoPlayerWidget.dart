@@ -1,59 +1,49 @@
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
 
 class VideoPlayerWidget extends StatefulWidget {
   final String videoUrl;
 
-  VideoPlayerWidget({required this.videoUrl});
+  const VideoPlayerWidget({required this.videoUrl});
 
   @override
   _VideoPlayerWidgetState createState() => _VideoPlayerWidgetState();
 }
 
 class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
-  VideoPlayerController? _controller;
-  bool _isInitialized = false;
+  late VideoPlayerController _videoPlayerController;
+  ChewieController? _chewieController;
 
   @override
   void initState() {
     super.initState();
-    _initializePlayer();
-  }
-
-  Future<void> _initializePlayer() async {
-    try {
-      if (kIsWeb || Platform.isAndroid || Platform.isIOS) {
-        _controller = VideoPlayerController.network(widget.videoUrl);
-        await _controller!.initialize();
+    _videoPlayerController = VideoPlayerController.network(widget.videoUrl)
+      ..initialize().then((_) {
         setState(() {
-          _isInitialized = true;
+          _chewieController = ChewieController(
+            videoPlayerController: _videoPlayerController,
+            autoPlay: false,
+            looping: false,
+            showControls: true,
+            allowMuting: true,
+            allowPlaybackSpeedChanging: true,
+          );
         });
-        _controller!.play();
-      } else {
-        print("🚫 Platform not supported for video playback.");
-      }
-    } catch (e) {
-      print("❌ Error initializing video player: $e");
-    }
+      });
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _videoPlayerController.dispose();
+    _chewieController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isInitialized || _controller == null) {
-      return Center(child: Text("Video not supported on this platform."));
-    }
-
-    return AspectRatio(
-      aspectRatio: _controller!.value.aspectRatio,
-      child: VideoPlayer(_controller!),
-    );
+    return _chewieController != null && _chewieController!.videoPlayerController.value.isInitialized
+        ? Chewie(controller: _chewieController!)
+        : Center(child: CircularProgressIndicator());
   }
 }
